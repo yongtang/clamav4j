@@ -15,7 +15,9 @@
  */
 package io.sensesecure.clamav4j;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -41,33 +43,6 @@ public class ClamAV {
         this.timeout = timeout;
     }
 
-    public String scan(FileChannel fileChannel) throws IOException, ClamAVException {
-        return scan(fileChannel, this.address, this.timeout);
-    }
-
-    public static String scan(FileChannel fileChannel, InetSocketAddress address, int timeout) throws IOException, ClamAVException {
-        try (SocketChannel socketChannel = SocketChannel.open(address)) {
-            socketChannel.write((ByteBuffer) ByteBuffer.wrap(INSTREAM).position(0));
-            socketChannel.write((ByteBuffer) ByteBuffer.allocate(4).putInt((int) fileChannel.size()).position(0));
-            fileChannel.transferTo(0, (int) fileChannel.size(), socketChannel);
-            socketChannel.write((ByteBuffer) ByteBuffer.allocateDirect(4).position(0));
-
-            socketChannel.socket().setSoTimeout(timeout);
-            ByteBuffer data = ByteBuffer.allocate(1024);
-            socketChannel.read(data);
-            String status = new String(data.array());
-            status = status.substring(0, status.indexOf(0));
-            if (OK.equals(status)) {
-                return "OK";
-            }
-            Matcher matcher = FOUND.matcher(status);
-            if (matcher.matches()) {
-                return matcher.group(1);
-            }
-            throw new ClamAVException(status);
-        }
-    }
-
     public InetSocketAddress getAddress() {
         return this.address;
     }
@@ -84,15 +59,79 @@ public class ClamAV {
         this.timeout = timeout;
     }
 
+    public String scan(FileChannel fileChannel) throws IOException, ClamAVException {
+        return scan(fileChannel, this.address, this.timeout);
+    }
+
+    public String scan(InputStream inputStream) throws IOException, ClamAVException {
+        return scan(inputStream, this.address, this.timeout);
+    }
+
+    public static String scan(FileChannel fileChannel, InetSocketAddress address, int timeout) throws IOException, ClamAVException {
+        try (SocketChannel socketChannel = SocketChannel.open(address)) {
+            socketChannel.write((ByteBuffer) ByteBuffer.wrap(INSTREAM));
+            ByteBuffer size = ByteBuffer.allocate(4);
+            size.clear();
+            size.putInt((int) fileChannel.size()).flip();
+            socketChannel.write(size);
+            fileChannel.transferTo(0, (int) fileChannel.size(), socketChannel);
+            size.clear();
+            size.putInt(0).flip();
+            socketChannel.write(size);
+
+            return scanResult(socketChannel, timeout);
+        }
+    }
+
+    public static String scan(InputStream inputStream, InetSocketAddress address, int timeout) throws IOException, ClamAVException {
+        try (SocketChannel socketChannel = SocketChannel.open(address)) {
+            socketChannel.write((ByteBuffer) ByteBuffer.wrap(INSTREAM));
+            ByteBuffer size = ByteBuffer.allocate(4);
+            byte[] b = new byte[CHUNK];
+            int chunk = CHUNK;
+            while (chunk == CHUNK) {
+                chunk = inputStream.read(b);
+                if (chunk > 0) {
+                    size.clear();
+                    size.putInt(chunk).flip();
+                    socketChannel.write(size);
+                    socketChannel.write(ByteBuffer.wrap(b, 0, chunk));
+                }
+            }
+            size.clear();
+            size.putInt(0).flip();
+            socketChannel.write(size);
+
+            return scanResult(socketChannel, timeout);
+        }
+    }
+
+    private static String scanResult(SocketChannel socketChannel, int timeout) throws IOException, ClamAVException {
+        socketChannel.socket().setSoTimeout(timeout);
+        ByteBuffer data = ByteBuffer.allocate(1024);
+        socketChannel.read(data);
+        String status = new String(data.array());
+        status = status.substring(0, status.indexOf(0));
+        if (OK.equals(status)) {
+            return "OK";
+        }
+        Matcher matcher = FOUND.matcher(status);
+        if (matcher.matches()) {
+            return matcher.group(1);
+        }
+        throw new ClamAVException(status);
+    }
+
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] <file/directory>");
+            System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] [--channel] <file/directory>");
             return;
         }
 
         int timeout = defaultTimeout;
         int port = defaultPort;
         String host = defaultHost;
+        boolean channel = false;
         for (int index = 0; index < args.length - 1; index++) {
             if ("--host".equals(args[index]) && index + 1 < args.length - 1) {
                 index++;
@@ -103,21 +142,32 @@ public class ClamAV {
             } else if ("--timeout".equals(args[index]) && index + 1 < args.length - 1) {
                 index++;
                 timeout = Integer.parseInt(args[index]);
+            } else if ("--channel".equals(args[index])) {
+                channel = true;
             } else {
                 System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] <file/directory>");
                 return;
             }
         }
+        final boolean channelSelection = channel;
         final ClamAV clamAV = new ClamAV(new InetSocketAddress(host, port), timeout);
         final Path path = Paths.get(args[args.length - 1]);
         try {
             Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
                 @Override
                 public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
-                    try (FileChannel fileChannel = FileChannel.open(path)) {
-                        String status = clamAV.scan(fileChannel);
-                        System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
-
+                    try {
+                        if (channelSelection) {
+                            try (FileChannel fileChannel = FileChannel.open(path)) {
+                                String status = clamAV.scan(fileChannel);
+                                System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
+                            }
+                        } else {
+                            try (InputStream fileChannel = new FileInputStream(path.toFile())) {
+                                String status = clamAV.scan(fileChannel);
+                                System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
+                            }
+                        }
                     } catch (ClamAVException | IOException ex) {
                         System.out.println(path + ": " + ex);
                         Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
@@ -133,6 +183,7 @@ public class ClamAV {
     private static final byte[] INSTREAM = "zINSTREAM\0".getBytes();
     private static final Pattern FOUND = Pattern.compile("^stream: (.+) FOUND$");
     private static final String OK = "stream: OK";
+    private static final int CHUNK = 4096;
 
     private static final int defaultTimeout = 0;
     private static final int defaultPort = 3310;
