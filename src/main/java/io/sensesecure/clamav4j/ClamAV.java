@@ -112,12 +112,11 @@ public class ClamAV {
         socketChannel.read(data);
         String status = new String(data.array());
         status = status.substring(0, status.indexOf(0));
-        if (OK.equals(status)) {
-            return "OK";
-        }
         Matcher matcher = FOUND.matcher(status);
         if (matcher.matches()) {
             return matcher.group(1);
+        } else if (OK.equals(status)) {
+            return "OK";
         }
         throw new ClamAVException(status);
     }
@@ -163,8 +162,8 @@ public class ClamAV {
                                 System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
                             }
                         } else {
-                            try (InputStream fileChannel = new FileInputStream(path.toFile())) {
-                                String status = clamAV.scan(fileChannel);
+                            try (InputStream inputStream = new FileInputStream(path.toFile())) {
+                                String status = clamAV.scan(inputStream);
                                 System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
                             }
                         }
@@ -180,12 +179,12 @@ public class ClamAV {
         }
     }
 
-    private static final byte[] INSTREAM = "zINSTREAM\0".getBytes();
-    private static final Pattern FOUND = Pattern.compile("^stream: (.+) FOUND$");
-    private static final String OK = "stream: OK";
-    private static final int CHUNK = 4096;
+    protected static final byte[] INSTREAM = "zINSTREAM\0".getBytes();
+    protected static final Pattern FOUND = Pattern.compile("^stream: (.+) FOUND$");
+    protected static final String OK = "stream: OK";
+    protected static final int CHUNK = 4096;
 
-    private static final int defaultTimeout = 0;
-    private static final int defaultPort = 3310;
-    private static final String defaultHost = "localhost";
+    protected static final int defaultTimeout = 0;
+    protected static final int defaultPort = 3310;
+    protected static final String defaultHost = "localhost";
 }
