@@ -21,4 +21,4 @@ For ClamAVAsync class, it may offer better performance with multi-core processor
 
 Contact
 -------
-If you have trouble with the library or have questions, check out the GitHub repository at http://help.github.com/yotang/clamav4j and I’ll help you sort it out.
+If you have trouble with the library or have questions, check out the GitHub repository at http://github.com/yotang/clamav4j and I’ll help you sort it out.
