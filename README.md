@@ -1,7 +1,7 @@
 ClamAV4j
 ========
 
-Java library for ClamAV
+A Java library for ClamAV
 -----------------------
 
 
@@ -9,11 +9,15 @@ This Java library is intended to be served as a bridge between a Java applicatio
 
 The library uses TCP socket (INET) to communicate with ClamAV daemon (clamd) through ClamAV's INSTREAM command. To use ClamAV4j library, either use the blocking connection Class:
 
+```
 class ClamAV
+```
 
 or use the asynchronous Class:
 
+```
 class ClamAVAsync
+```
 
 Performance
 -----------
