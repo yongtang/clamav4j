@@ -31,8 +31,11 @@
     <!-- MAIN CONTENT -->
     <div id="main_content_wrap" class="outer">
       <section id="main_content" class="inner">
-        <h3>
-<a name="welcome-to-clamav4j" class="anchor" href="#welcome-to-clamav4j"><span class="octicon octicon-link"></span></a>Welcome to ClamAV4j.</h3>
+        <h1>
+<a name="clamav4j" class="anchor" href="#clamav4j"><span class="octicon octicon-link"></span></a>ClamAV4j</h1>
+
+<h2>
+<a name="a-java-library-for-clamav" class="anchor" href="#a-java-library-for-clamav"><span class="octicon octicon-link"></span></a>A Java library for ClamAV</h2>
 
 <p>This Java library is intended to be served as a bridge between a Java application or web service and the ClamAV antivirus engine. With ClamAV4j, virus detection could be performed for any content that comes from outside.</p>
 
@@ -41,18 +44,30 @@
 <pre><code>class ClamAV
 </code></pre>
 
-<p>or use the asynchronous Class</p>
+<p>or use the asynchronous Class:</p>
 
 <pre><code>class ClamAVAsync
 </code></pre>
 
-<h3>
-<a name="performance" class="anchor" href="#performance"><span class="octicon octicon-link"></span></a>Performance</h3>
+<h2>
+<a name="installation" class="anchor" href="#installation"><span class="octicon octicon-link"></span></a>Installation</h2>
+
+<p>Add the ClamAV4j POM to a project with</p>
+
+<pre><code>&lt;dependency&gt;
+  &lt;groupId&gt;io.sensesecure&lt;/groupId&gt;
+  &lt;artifactId&gt;clamav4j&lt;/artifactId&gt;
+  &lt;version&gt;0.5&lt;/version&gt;
+&lt;/dependency&gt;
+</code></pre>
+
+<h2>
+<a name="performance" class="anchor" href="#performance"><span class="octicon octicon-link"></span></a>Performance</h2>
 
 <p>For ClamAVAsync class, it may offer better performance with multi-core processors. On the other hand, blocking ClamAV class allows the usage of FileChannel, which may bypass buffer copy under certain situations. It is best to test with the real scenario to make a selection between the two classes.</p>
 
-<h3>
-<a name="contact" class="anchor" href="#contact"><span class="octicon octicon-link"></span></a>Contact</h3>
+<h2>
+<a name="contact" class="anchor" href="#contact"><span class="octicon octicon-link"></span></a>Contact</h2>
 
 <p>If you have trouble with the library or have questions, check out the GitHub repository at <a href="http://github.com/yotang/clamav4j">http://github.com/yotang/clamav4j</a> and I’ll help you sort it out.</p>
       </section>
