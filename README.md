@@ -19,6 +19,17 @@ or use the asynchronous Class:
 class ClamAVAsync
 ```
 
+Installation
+------------
+Add the ClamAV4j POM to a project with
+```
+<dependency>
+  <groupId>io.sensesecure</groupId>
+  <artifactId>clamav4j</artifactId>
+  <version>0.5</version>
+</dependency>
+```
+
 Performance
 -----------
 For ClamAVAsync class, it may offer better performance with multi-core processors. On the other hand, blocking ClamAV class allows the usage of FileChannel, which may bypass buffer copy under certain situations. It is best to test with the real scenario to make a selection between the two classes.
