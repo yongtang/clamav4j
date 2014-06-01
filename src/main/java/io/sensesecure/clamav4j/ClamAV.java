@@ -67,6 +67,29 @@ public class ClamAV {
         return scan(inputStream, this.address, this.timeout);
     }
 
+    public boolean ping() {
+        return ping(this.address, this.timeout);
+    }
+
+    public static boolean ping(InetSocketAddress address, int timeout) {
+        try (SocketChannel socketChannel = SocketChannel.open(address)) {
+            socketChannel.write((ByteBuffer) ByteBuffer.wrap(PING));
+
+            socketChannel.socket().setSoTimeout(timeout);
+
+            ByteBuffer data = ByteBuffer.allocate(1024);
+            socketChannel.read(data);
+            String status = new String(data.array());
+            status = status.substring(0, status.indexOf(0));
+            if (PONG.equals(status)) {
+                return true;
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return false;
+    }
+
     public static String scan(FileChannel fileChannel, InetSocketAddress address, int timeout) throws IOException, ClamAVException {
         try (SocketChannel socketChannel = SocketChannel.open(address)) {
             socketChannel.write((ByteBuffer) ByteBuffer.wrap(INSTREAM));
@@ -123,7 +146,7 @@ public class ClamAV {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] [--channel] <file/directory>");
+            System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] [--channel] [--ping] [<file/directory>]");
             return;
         }
 
@@ -131,6 +154,7 @@ public class ClamAV {
         int port = defaultPort;
         String host = defaultHost;
         boolean channel = false;
+        boolean ping = false;
         for (int index = 0; index < args.length - 1; index++) {
             if ("--host".equals(args[index]) && index + 1 < args.length - 1) {
                 index++;
@@ -143,39 +167,45 @@ public class ClamAV {
                 timeout = Integer.parseInt(args[index]);
             } else if ("--channel".equals(args[index])) {
                 channel = true;
+            } else if ("--ping".equals(args[index])) {
+                ping = true;
             } else {
                 System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] <file/directory>");
                 return;
             }
         }
-        final boolean channelSelection = channel;
         final ClamAV clamAV = new ClamAV(new InetSocketAddress(host, port), timeout);
-        final Path path = Paths.get(args[args.length - 1]);
-        try {
-            Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
-                    try {
-                        if (channelSelection) {
-                            try (FileChannel fileChannel = FileChannel.open(path)) {
-                                String status = clamAV.scan(fileChannel);
-                                System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
+        if (ping || ("--ping".equals(args[args.length - 1]))) {            
+            System.out.println(clamAV.getAddress() + ": " + (clamAV.ping() ? "ALIVE" : "DOWN"));
+        } else {
+            final boolean channelSelection = channel;
+            final Path path = Paths.get(args[args.length - 1]);
+            try {
+                Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
+                        try {
+                            if (channelSelection) {
+                                try (FileChannel fileChannel = FileChannel.open(path)) {
+                                    String status = clamAV.scan(fileChannel);
+                                    System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
+                                }
+                            } else {
+                                try (InputStream inputStream = new FileInputStream(path.toFile())) {
+                                    String status = clamAV.scan(inputStream);
+                                    System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
+                                }
                             }
-                        } else {
-                            try (InputStream inputStream = new FileInputStream(path.toFile())) {
-                                String status = clamAV.scan(inputStream);
-                                System.out.println(path + ": " + ("OK".equals(status) ? "OK" : (status + " FOUND")));
-                            }
+                        } catch (ClamAVException | IOException ex) {
+                            System.out.println(path + ": " + ex);
+                            Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
                         }
-                    } catch (ClamAVException | IOException ex) {
-                        System.out.println(path + ": " + ex);
-                        Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
+                        return FileVisitResult.CONTINUE;
                     }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException ex) {
-            Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
+                });
+            } catch (IOException ex) {
+                Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
@@ -183,6 +213,9 @@ public class ClamAV {
     protected static final Pattern FOUND = Pattern.compile("^stream: (.+) FOUND$");
     protected static final String OK = "stream: OK";
     protected static final int CHUNK = 4096;
+
+    protected static final byte[] PING = "zPING\0".getBytes();
+    protected static final String PONG = "PONG";
 
     protected static final int defaultTimeout = 0;
     protected static final int defaultPort = 3310;

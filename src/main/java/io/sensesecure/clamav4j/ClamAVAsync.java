@@ -63,9 +63,13 @@ public class ClamAVAsync implements AutoCloseable {
         this.timeout = timeout;
     }
 
-    public <A> void scan(InputStream inputStream, A attachment, ClamAVAsyncCallback <A> callback) throws IOException {
+    public <A> void scan(InputStream inputStream, A attachment, ClamAVAsyncCallback<A> callback) throws IOException {
         AsynchronousSocketChannel asynchronousSocketChannel = AsynchronousSocketChannel.open(this.asynchronousChannelGroup);
         asynchronousSocketChannel.connect(this.address, new ClamAVAsyncObject(inputStream, attachment, callback, asynchronousSocketChannel), new ClamAVAsyncObjectCompletionHandlerConnect());
+    }
+    
+    public boolean ping() {
+        return ClamAV.ping(this.address, this.timeout);
     }
 
     @Override
@@ -77,11 +81,12 @@ public class ClamAVAsync implements AutoCloseable {
             Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    
-    static protected class ClamAVAsyncObject <A> {
+
+    static protected class ClamAVAsyncObject<A> {
+
         protected final InputStream inputStream;
         protected final A attachment;
-        protected final ClamAVAsyncCallback <A> callback;
+        protected final ClamAVAsyncCallback<A> callback;
         protected final AsynchronousSocketChannel asynchronousSocketChannel;
         protected final ByteBuffer head = ByteBuffer.wrap(ClamAV.INSTREAM);
         protected byte[] buffer = new byte[ClamAV.CHUNK];
@@ -90,20 +95,20 @@ public class ClamAVAsync implements AutoCloseable {
         ByteBuffer size = ByteBuffer.allocate(4);
         ByteBuffer read = ByteBuffer.allocate(1024);
 
-        protected ClamAVAsyncObject(InputStream inputStream, A attachment, ClamAVAsyncCallback <A> callback, AsynchronousSocketChannel asynchronousSocketChannel) {
+        protected ClamAVAsyncObject(InputStream inputStream, A attachment, ClamAVAsyncCallback<A> callback, AsynchronousSocketChannel asynchronousSocketChannel) {
             this.inputStream = inputStream;
             this.attachment = attachment;
             this.callback = callback;
             this.asynchronousSocketChannel = asynchronousSocketChannel;
         }
-        
+
         protected void completed(String result) {
             try {
                 this.asynchronousSocketChannel.close();
             } catch (IOException ex) {
                 Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
             }
-            this.callback.completed(result, attachment, inputStream);   
+            this.callback.completed(result, attachment, inputStream);
         }
 
         protected void failed(Throwable exc) {
@@ -129,12 +134,12 @@ public class ClamAVAsync implements AutoCloseable {
                     } else if (ClamAV.OK.equals(status)) {
                         attachment.completed("OK");
                     } else {
-                        attachment.failed(new ClamAVException(status));                        
-                    }                   
+                        attachment.failed(new ClamAVException(status));
+                    }
                     return;
                 }
             }
-            
+
             attachment.asynchronousSocketChannel.read(attachment.read, attachment, this);
         }
 
@@ -143,6 +148,7 @@ public class ClamAVAsync implements AutoCloseable {
             attachment.failed(exc);
         }
     }
+
     static protected class ClamAVAsyncObjectCompletionHandlerData implements CompletionHandler<Integer, ClamAVAsyncObject> {
 
         @Override
@@ -242,13 +248,14 @@ public class ClamAVAsync implements AutoCloseable {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] <file/directory>");
+            System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] [--ping] [<file/directory>]");
             return;
         }
 
         int timeout = ClamAV.defaultTimeout;
         int port = ClamAV.defaultPort;
         String host = ClamAV.defaultHost;
+        boolean ping = false;
         for (int index = 0; index < args.length - 1; index++) {
             if ("--host".equals(args[index]) && index + 1 < args.length - 1) {
                 index++;
@@ -259,50 +266,56 @@ public class ClamAVAsync implements AutoCloseable {
             } else if ("--timeout".equals(args[index]) && index + 1 < args.length - 1) {
                 index++;
                 timeout = Integer.parseInt(args[index]);
+            } else if ("--ping".equals(args[index])) {
+                ping = true;
             } else {
                 System.out.println("Usage: java program [--host <host>] [--port <port>] [--timeout <timeout>] <file/directory>");
                 return;
             }
         }
-        final Path path = Paths.get(args[args.length - 1]);
         try (final ClamAVAsync clamAVAsync = new ClamAVAsync(new InetSocketAddress(host, port), timeout)) {
-            try {
-                Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
-                        try {
-                            InputStream inputStream = new FileInputStream(path.toFile());
-                            clamAVAsync.scan(inputStream, path.toString(), new ClamAVAsyncCallback<String>() {
+            if (ping || ("--ping".equals(args[args.length - 1]))) {
+                System.out.println(clamAVAsync.getAddress() + ": " + (clamAVAsync.ping() ? "ALIVE" : "DOWN"));
+            } else {
+                final Path path = Paths.get(args[args.length - 1]);
+                try {
+                    Files.walkFileTree(path, new SimpleFileVisitor<Path>() {
+                        @Override
+                        public FileVisitResult visitFile(Path path, BasicFileAttributes basicFileAttributes) throws IOException {
+                            try {
+                                InputStream inputStream = new FileInputStream(path.toFile());
+                                clamAVAsync.scan(inputStream, path.toString(), new ClamAVAsyncCallback<String>() {
 
-                                @Override
-                                public void completed(String result, String attachment, InputStream inputStream) {
-                                    System.out.println(attachment + ": " + ("OK".equals(result) ? "OK" : (result + " FOUND")));
-                                    try {
-                                        inputStream.close();
-                                    } catch (IOException ex) {
-                                        Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                                    @Override
+                                    public void completed(String result, String attachment, InputStream inputStream) {
+                                        System.out.println(attachment + ": " + ("OK".equals(result) ? "OK" : (result + " FOUND")));
+                                        try {
+                                            inputStream.close();
+                                        } catch (IOException ex) {
+                                            Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                                        }
                                     }
-                                }
 
-                                @Override
-                                public void failed(Throwable exc, String attachment, InputStream inputStream) {
-                                    System.out.println(attachment + ": " + exc);
-                                    try {
-                                        inputStream.close();
-                                    } catch (IOException ex) {
-                                        Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                                    @Override
+                                    public void failed(Throwable exc, String attachment, InputStream inputStream) {
+                                        System.out.println(attachment + ": " + exc);
+                                        try {
+                                            inputStream.close();
+                                        } catch (IOException ex) {
+                                            Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                                        }
                                     }
-                                }
-                            });
-                        } catch (IOException ex) {
-                            System.out.println(path + ": " + ex);
-                            Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                                });
+                            } catch (IOException ex) {
+                                System.out.println(path + ": " + ex);
+                                Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                            }
+                            return FileVisitResult.CONTINUE;
                         }
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-            } catch (IOException ex) {
-                Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                    });
+                } catch (IOException ex) {
+                    Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
+                }
             }
         } catch (IOException ex) {
             Logger.getLogger(ClamAVAsync.class.getName()).log(Level.SEVERE, null, ex);
