@@ -143,6 +143,37 @@ public class ClamAV {
         }
         throw new ClamAVException(status);
     }
+    
+    /**
+     * Retrieves the ClamAV database version.
+     * 
+     * @return ClamAV version.
+     */
+    public ClamAVVersion getVersion() {
+        return getVersion(this.address, this.timeout);
+    }
+
+    /**
+     * Retrieves the ClamAV database version.
+     * 
+     * @param address Address where the ClamAV is running.
+     * @param timeout Timeout for the request.
+     * @return ClamAV version.
+     */
+    public static ClamAVVersion getVersion(InetSocketAddress address, int timeout) {
+        try (SocketChannel socketChannel = SocketChannel.open(address)) {
+            socketChannel.write((ByteBuffer) ByteBuffer.wrap(VERSION));
+            socketChannel.socket().setSoTimeout(timeout);
+            ByteBuffer data = ByteBuffer.allocate(1024);
+            socketChannel.read(data);
+            String status = new String(data.array());
+            status = status.substring(0, status.indexOf(0));
+            return new ClamAVVersion(status);
+        } catch (IOException ex) {
+            Logger.getLogger(ClamAV.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
 
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -216,6 +247,8 @@ public class ClamAV {
 
     protected static final byte[] PING = "zPING\0".getBytes();
     protected static final String PONG = "PONG";
+
+    protected static final byte[] VERSION = "zVERSION\0".getBytes();
 
     protected static final int defaultTimeout = 0;
     protected static final int defaultPort = 3310;
