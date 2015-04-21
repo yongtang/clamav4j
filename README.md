@@ -22,11 +22,11 @@ class ClamAVAsync
 Installation
 ------------
 Add the ClamAV4j POM to a project with
-```
+```xml
 <dependency>
   <groupId>io.sensesecure</groupId>
   <artifactId>clamav4j</artifactId>
-  <version>0.5</version>
+  <version>0.6</version>
 </dependency>
 ```
 
