@@ -6,21 +6,31 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Represents a ClamAV version. The ClamAV database is versioned in two ways - the version number and the version time. Users of this class can choose their
+ * Represents a ClamAV version. The ClamAV database is versioned in two ways -
+ * the version number and the version time. Users of this class can choose their
  * preferred field of antivirus database versioning.
  */
 public class ClamAVVersion {
-    /** Version of the ClamAV client. */
+
+    /**
+     * Version of the ClamAV client.
+     */
     private final String clamAvVersion;
-    /** Number of the database version. Higher number means newer version. */
+    /**
+     * Number of the database version. Higher number means newer version.
+     */
     private final long databaseVersion;
-    /** Time when the database was updated. Higher number means newer version. */
+    /**
+     * Time when the database was updated. Higher number means newer version.
+     */
     private final Date databaseTime;
 
     /**
      * Constructor.
-     * 
-     * @param status Response from the clamd VERSION command. Contains '/'-separated version of the clamAV client, database and database timestamp.
+     *
+     * @param clamdResponse Response from the clamd VERSION command. Contains
+     * '/'-separated version of the clamAV client, database and database
+     * timestamp.
      */
     public ClamAVVersion(String clamdResponse) {
         String[] split = clamdResponse.split("\\/");
@@ -41,20 +51,26 @@ public class ClamAVVersion {
     }
 
     /**
-     * @return Number of the database version. Higher number means newer version.
+     * @return Number of the database version. Higher number means newer
+     * version.
      */
     public long getDatabaseVersion() {
         return databaseVersion;
     }
 
     /**
-     * @return Time when the database was updated. Higher number means newer version.
+     * @return Time when the database was updated. Higher number means newer
+     * version.
      */
     public Date getDatabaseTime() {
         return databaseTime;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * @return ClamAVVersion String
+     */
     @Override
     public String toString() {
         return "ClamAVVersion [clamAvVersion=" + clamAvVersion + ", databaseVersion=" + databaseVersion + ", databaseTime=" + databaseTime + "]";
